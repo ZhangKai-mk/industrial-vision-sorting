@@ -1,5 +1,7 @@
 # 工业六轴机器人视觉引导动态分拣系统
 
+![CI](https://github.com/ZhangKai-mk/industrial-vision-sorting/actions/workflows/ci.yml/badge.svg)
+
 > 面向产线「动态来料 → 视觉定位/质检 → 机器人分拣」场景的**视觉引导软件**。
 > 算法与协议是真实实现，缺的硬件用**等价模拟件**替代，无真机也能端到端复现、可测试、可审查。
 
@@ -56,6 +58,9 @@ uv run python scripts/benchmark.py
 # 6. 缺陷检测（PatchCore，需 torch）
 uv sync --extra dev --extra patchcore
 uv run python scripts/defect_demo.py
+
+# 7. 训练 YOLO 检测模型（可选，详见 docs/train_yolo.md）
+uv run python scripts/train_yolo.py --no-train   # 生成合成数据集
 ```
 
 > 国内网络可加清华镜像：`uv sync --extra dev --index-url https://pypi.tuna.tsinghua.edu.cn/simple`。
@@ -107,6 +112,7 @@ tests/                单元测试（19 个）
 - [`docs/architecture.md`](docs/architecture.md) —— 架构与数据流
 - [`docs/point_table.md`](docs/point_table.md) —— Modbus TCP 点表（字序/单位/坐标系约定）
 - [`docs/honesty.md`](docs/honesty.md) —— 真实 vs 仿真口径、数字口径（**面试前必看**）
+- [`docs/train_yolo.md`](docs/train_yolo.md) —— 如何训练 YOLO 权重（合成数据 + 换真实数据）
 
 ## License
 
