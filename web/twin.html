@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>工业六轴机器人视觉引导动态分拣 —— 数字孪生</title>
+<style>
+  body { margin: 0; overflow: hidden; font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #0f1218; color: #dfe6f0; }
+  #hud { position: absolute; top: 12px; left: 12px; background: rgba(20,26,36,.85); padding: 10px 14px; border-radius: 8px; font-size: 12px; line-height: 1.6; pointer-events: none; }
+  #hud b { color: #6ee7b7; }
+  #msg { position: absolute; top: 12px; right: 12px; background: rgba(20,26,36,.85); padding: 8px 12px; border-radius: 8px; font-size: 12px; }
+  .ok { color: #6ee7b7; } .warn { color: #fbbf24; } .ng { color: #f87171; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div>数字孪生 · <b>旁路只读镜像</b>（不写回设备）</div>
+  <div>工件数: <span id="count">0</span> · 绿色=OK 红色=NG</div>
+</div>
+<div id="msg" class="warn">加载数据中…</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const belt = { w: 640, h: 320 };  // mm，与基座系一致
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1218);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 4000);
+camera.position.set(0, -600, 500);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x223, 1.1));
+const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+dir.position.set(200, -200, 400);
+scene.add(dir);
+
+// 皮带
+const beltMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(belt.w, belt.h),
+  new THREE.MeshStandardMaterial({ color: 0x2a2f38, roughness: 0.9 })
+);
+beltMesh.rotation.x = -Math.PI / 2;
+scene.add(beltMesh);
+
+const grid = new THREE.GridHelper(Math.max(belt.w, belt.h), 16, 0x3a4150, 0x252b34);
+grid.position.z = -1;
+scene.add(grid);
+
+const workpieceGroup = new THREE.Group();
+scene.add(workpieceGroup);
+
+function makeWorkpiece(item) {
+  const color = item.class_name === 'ring' ? 0x60a5fa
+    : item.class_name === 'plate' ? 0x34d399
+    : 0xfbbf24;
+  const reject = item.defect || item.grasp?.reject;
+  const mat = new THREE.MeshStandardMaterial({
+    color: reject ? 0xf87171 : color, roughness: 0.4, metalness: 0.6,
+  });
+  let geo;
+  if (item.class_name === 'ring') {
+    geo = new THREE.TorusGeometry(22, 8, 12, 32);
+  } else if (item.class_name === 'plate') {
+    geo = new THREE.BoxGeometry(48, 28, 6);
+  } else {
+    geo = new THREE.CylinderGeometry(24, 24, 8, 6);
+  }
+  const m = new THREE.Mesh(geo, mat);
+  const p = item.pose || {};
+  m.position.set(p.x ?? 0, p.y ?? 0, 4);
+  m.rotation.z = (p.yaw ?? 0) + Math.PI / 2;
+  return m;
+}
+
+async function load() {
+  const msg = document.getElementById('msg');
+  let data = null;
+  try {
+    const res = await fetch('../outputs/demo/twin_state.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    data = await res.json();
+  } catch (e) {
+    msg.className = 'warn';
+    msg.textContent = '请先运行 `uv run python scripts/run_demo.py`，或用本地服务器打开本页';
+    return;
+  }
+  const items = data.items || [];
+  document.getElementById('count').textContent = items.length;
+  for (const it of items) workpieceGroup.add(makeWorkpiece(it));
+  const ng = items.filter(i => i.defect || i.grasp?.reject).length;
+  msg.className = ng ? 'ng' : 'ok';
+  msg.textContent = `已加载 ${items.length} 个工件 · NG ${ng} 个`;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+load();
+animate();
+</script>
+</body>
+</html>
